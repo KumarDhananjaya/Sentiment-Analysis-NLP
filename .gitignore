@@ -1,0 +1,20 @@
+# Virtual Environment
+venv/
+*.pyc
+__pycache__/
+
+# Data and Models
+data/*.csv
+models/*.pkl
+models/*.h5
+
+# Jupyter Notebook Checkpoints
+.ipynb_checkpoints/
+
+# Environment Variables
+.env
+
+# Logs and Cache
+logs/
+*.log
+.DS_Store
