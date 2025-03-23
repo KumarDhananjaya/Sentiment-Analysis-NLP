@@ -16,7 +16,7 @@ nltk.download("punkt")
 nltk.download("stopwords")
 
 # Load the cleaned dataset
-df = pd.read_csv("data/train.csv", header=None, names=["label", "title", "text"])
+df = pd.read_csv("data/test.csv", header=None, names=["label", "title", "text"])
 
 # Handle missing values
 df = df.fillna("")
@@ -62,7 +62,7 @@ print("Classification Report:\n", classification_report(y_test, y_pred))
 df["predicted_sentiment"] = pipeline.predict(df["cleaned_text"])
 
 # Save the results to a new file
-df.to_csv("data/train_sentiment_ml.csv", index=False)
+df.to_csv("data/test_sentiment_ml.csv", index=False)
 print("Sentiment analysis completed! Results saved in 'data/test_sentiment_ml.csv'.")
 
 # Visualization of Sentiment Distribution

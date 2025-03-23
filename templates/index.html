@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Amazon Reviews Sentiment Analysis</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+
+    <style>
+        body {
+            background: #f8f9fa;
+            font-family: 'Arial', sans-serif;
+        }
+        .container {
+            max-width: 750px;
+        }
+        .card {
+            border-radius: 12px;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+            border: none;
+            background: white;
+        }
+        .btn {
+            font-weight: 500;
+            border-radius: 8px;
+            transition: all 0.2s ease-in-out;
+            margin: 6px;
+        }
+        .btn:hover {
+            transform: scale(1.05);
+        }
+        .progress {
+            height: 8px;
+            border-radius: 10px;
+            display: none;
+        }
+        .chart-container {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+        }
+        .loader {
+            display: none;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 10px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container mt-5">
+        <h2 class="text-center">Sentiment Analysis Results</h2>
+    
+        <div class="card p-4 mt-4 text-center">
+            <button class="btn btn-primary" onclick="testModel()">Test Model</button>
+        </div>
+    
+        <div class="text-center mt-4">
+            <h4>Model Accuracy:</h4>
+            <h3 id="accuracy-result" class="mt-2"></h3>
+        </div>
+    
+        <canvas id="sentimentChart" class="mt-5"></canvas>
+    
+        <h3 class="mt-5">Classification Report</h3>
+        <div id="classification-report"></div>
+    </div>
+    
+
+<script>
+    function trainModel() {
+        let progressBar = document.getElementById("training-progress");
+        let bar = document.getElementById("progress-bar");
+        let spinner = document.getElementById("loading-spinner");
+
+        progressBar.style.display = "block";
+        spinner.style.display = "block";
+
+        let width = 0;
+        let interval = setInterval(() => {
+            if (width >= 100) {
+                clearInterval(interval);
+                $.ajax({
+                    url: "/train",
+                    type: "POST",
+                    success: function(response) {
+                        document.getElementById("accuracy-result").innerText = `Accuracy: ${response.accuracy.toFixed(2)}%`;
+                        alert("Model training completed!");
+                        spinner.style.display = "none";
+                    }
+                });
+            } else {
+                width += 10;
+                bar.style.width = width + "%";
+            }
+        }, 500);
+    }
+
+    function testModel() {
+        let spinner = document.getElementById("loading-spinner");
+        spinner.style.display = "block";
+
+        $.ajax({
+            url: "/test",
+            type: "POST",
+            beforeSend: function() {
+                document.getElementById("accuracy-result").innerText = "Testing in progress...";
+                document.getElementById("classification-report").innerHTML = "";
+            },
+            success: function(response) {
+                // Display accuracy
+                document.getElementById("accuracy-result").innerText = `Accuracy: ${(response.accuracy * 100).toFixed(2)}%`;
+        
+                // Extract sentiment counts
+                let sentimentCounts = { positive: 0, neutral: 0, negative: 0 };
+                response.predictions.forEach((sentiment) => {
+                    if (sentiment === 1) sentimentCounts.positive++;
+                    else if (sentiment === 2) sentimentCounts.neutral++;
+                    else sentimentCounts.negative++;
+                });
+        
+                // Destroy previous chart instance if it exists
+                if (window.sentimentChart) {
+                    window.sentimentChart.destroy();
+                }
+        
+                // Render Sentiment Distribution Chart
+                let ctx = document.getElementById("sentimentChart").getContext("2d");
+                window.sentimentChart = new Chart(ctx, {
+                    type: "bar",
+                    data: {
+                        labels: ["Positive", "Neutral", "Negative"],
+                        datasets: [{
+                            label: "Sentiment Distribution",
+                            data: [
+                                sentimentCounts.positive,
+                                sentimentCounts.neutral,
+                                sentimentCounts.negative
+                            ],
+                            backgroundColor: ["#28a745", "#ffc107", "#dc3545"]
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: { beginAtZero: true }
+                        }
+                    }
+                });
+        
+                // Generate classification report table
+                let classificationReport = response.classification_report;
+                let tableHTML = `
+                    <table class="table mt-4">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Class</th>
+                                <th>Precision</th>
+                                <th>Recall</th>
+                                <th>F1-score</th>
+                                <th>Support</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+        
+                for (let label in classificationReport) {
+                    if (!["accuracy", "macro avg", "weighted avg"].includes(label)) {
+                        let row = classificationReport[label];
+                        tableHTML += `
+                            <tr>
+                                <td>${label}</td>
+                                <td>${(row.precision * 100).toFixed(2)}%</td>
+                                <td>${(row.recall * 100).toFixed(2)}%</td>
+                                <td>${(row["f1-score"] * 100).toFixed(2)}%</td>
+                                <td>${row.support}</td>
+                            </tr>`;
+                    }
+                }
+        
+                tableHTML += `</tbody></table>`;
+                document.getElementById("classification-report").innerHTML = tableHTML;
+            },
+            error: function(xhr, status, error) {
+                document.getElementById("accuracy-result").innerText = "Error occurred. Please try again.";
+                console.error("Error:", error);
+            }
+        });
+    }        
+</script>
+
+</body>
+</html>
